@@ -18,19 +18,16 @@ object Zzz {
     } yield new Zzz {
       def sleep: IO[Unit] =
         for {
-          _ <- IO.println("[zzz] starting sleep")
-          d <- refDef.get
-          _ <- d.get
-          _ <- IO.println("[zzz] awaken")
+          _ <- refDef.get.map(
+            _.get
+          ) // caveat: Due to automatic context shift, you should write in single flatmap
         } yield ()
 
       def wakeUp: IO[Unit] =
         for {
-          _ <- IO.println("[zzz] wake up")
-          newd <- Deferred[IO, Unit]
-          d <- refDef.get
+          d <- Deferred[IO, Unit].flatMap(refDef.getAndSet)
+          _ <- IO.print(".")
           _ <- d.complete(())
-          _ <- refDef.set(newd)
         } yield ()
     }
 }

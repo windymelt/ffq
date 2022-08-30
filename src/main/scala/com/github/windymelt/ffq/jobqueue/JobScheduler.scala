@@ -43,6 +43,11 @@ object JobScheduler {
             job <- Job.create(task)
             _ <- schedulerState.update(_.enqueue(job))
             _ <- IO.println(s"[scheduler] state upated: enququed ${job.id}")
+            _ <- schedulerState.get.flatMap(st =>
+              IO.println(
+                s"[scheduler] state: scheduled: ${st.scheduled.size} / running: ${st.running.size} / completed: ${st.completed.size}"
+              )
+            )
             _ <- zzz.wakeUp
           } yield job.id
       }
@@ -50,9 +55,7 @@ object JobScheduler {
       onStart = (id: Job.Id) => IO.println("[scheduler] starting resource")
       onComplete = (id: Job.Id, exitCase: Outcome[IO, Throwable, Unit]) =>
         zzz.wakeUp
-      loop: IO[Nothing] = IO.println(
-        "[scheduler] sleeping"
-      ) *> (zzz.sleep *> reactor.whenAwake(
+      loop: IO[Nothing] = (zzz.sleep *> reactor.whenAwake(
         onStart,
         onComplete
       )).foreverM

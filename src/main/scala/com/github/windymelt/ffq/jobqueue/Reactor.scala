@@ -21,10 +21,7 @@ object Reactor {
         def startNextJob: IO[Option[Job.Running]] = {
           import cats.implicits._
           for {
-            _ <- IO.println("[reactor] starting next job")
             job <- stateRef.modify(_.dequeue)
-            _ <- IO.println(job)
-            _ <- IO.println("[reactor] state renewed")
             running <- job.traverse(startJob)
           } yield running
         }
@@ -34,6 +31,9 @@ object Reactor {
             _ <- IO.println("[reactor] starting asynchronous job...")
             running <- scheduled.start
             _ <- stateRef.update(_.running(running))
+            _ <- stateRef.get.flatMap(st =>
+              IO.println(s"current running job: ${st.running.size}")
+            )
             _ <- registerOnComplete(running)
             _ <- onStart(running.id).attempt
           } yield running
@@ -42,11 +42,14 @@ object Reactor {
           job.await.flatMap(jobCompleted).start
 
         def jobCompleted(job: Job.Completed): IO[Unit] =
-          stateRef
-            .update(_.onComplete(job))
-            .flatTap(_ => onComplete(job.id, job.exitCase).attempt)
+          for {
+            _ <- IO.println(s"[reactor] completed job ${job.id}")
+            _ <- stateRef
+              .update(_.onComplete(job))
+              .flatTap(_ => onComplete(job.id, job.exitCase).attempt)
+          } yield ()
 
-        IO.println("[reactor] whenAwake") *> startNextJob
+        startNextJob
           .iterateUntil(_.isEmpty)
           .void
       }

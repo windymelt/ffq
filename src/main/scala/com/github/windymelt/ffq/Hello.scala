@@ -11,11 +11,14 @@ object Hello extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] = for {
     _ <- IO.println("running main")
-    res <- jobqueue.JobScheduler.resource(1)
+    res <- jobqueue.JobScheduler.resource(10)
     rr <- res.use { r =>
-      r.schedule(IO.sleep(Duration(1, "second")) *> IO.println("foo"))
-      r.schedule(IO.sleep(Duration(1, "second")) *> IO.println("foo"))
-      r.schedule(IO.sleep(Duration(1, "second")) *> IO.println("foo"))
+      for {
+        _ <- r.schedule(IO.sleep(Duration(1, "second")) *> IO.println("foo"))
+        _ <- r.schedule(IO.sleep(Duration(1, "second")) *> IO.println("bar"))
+        _ <- r.schedule(IO.sleep(Duration(1, "second")) *> IO.println("buzz"))
+        _ <- IO.sleep(Duration(5, "seconds"))
+      } yield ()
     }
 
     // id <- res.schedule(IO.println("job"))
