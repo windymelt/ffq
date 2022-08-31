@@ -27,8 +27,9 @@ object JobScheduler {
     }
     def running(job: Job.Running): State =
       copy(running = running + (job.id -> job))
-    def onComplete(job: Job.Completed): State =
-      copy(completed = completed :+ job)
+    def onComplete(job: Job.Completed): State = {
+      copy(completed = job +: completed, running = running.tail)
+    }
   }
 
   def resource(maxRunning: Int): IO[Resource[IO, JobScheduler]] =
@@ -48,13 +49,21 @@ object JobScheduler {
                 s"[scheduler] state: scheduled: ${st.scheduled.size} / running: ${st.running.size} / completed: ${st.completed.size}"
               )
             )
+            _ <- IO.println("[scheduler] job scheduled. waking up trigger")
             _ <- zzz.wakeUp
           } yield job.id
       }
       reactor = Reactor(schedulerState)
       onStart = (id: Job.Id) => IO.println("[scheduler] starting resource")
       onComplete = (id: Job.Id, exitCase: Outcome[IO, Throwable, Unit]) =>
-        zzz.wakeUp
+        for {
+          _ <- IO.println("[scheduler] completed job; waking up trigger")
+          st <- schedulerState.get
+          _ <- IO.println(
+            s"            state: scheduled: ${st.scheduled.size} / running: ${st.running.size} / completed: ${st.completed.size}"
+          )
+          _ <- zzz.wakeUp
+        } yield ()
       loop: IO[Nothing] = (zzz.sleep *> reactor.whenAwake(
         onStart,
         onComplete
